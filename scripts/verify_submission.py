@@ -199,7 +199,16 @@ def run_backend_tests():
     venv_dir = BACKEND_DIR / "venv"
     venv_pytest = venv_dir / "bin" / "pytest"
 
+    use_venv = False
     if venv_pytest.exists():
+        try:
+            test_run = subprocess.run([str(venv_pytest), "--version"], capture_output=True, timeout=5)
+            if test_run.returncode == 0:
+                use_venv = True
+        except Exception:
+            pass
+
+    if use_venv:
         cmd = [str(venv_pytest), "backend/tests", "-v"]
     else:
         # Check if the active Python environment has dependencies installed

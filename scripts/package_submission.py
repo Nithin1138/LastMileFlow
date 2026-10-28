@@ -36,6 +36,7 @@ EXCLUDED_FILE_NAMES = {
     ".DS_Store",
     ".env",
     "MASTER_DOCUMENT.md",
+    "RESUME.md",
 }
 
 EXCLUDED_EXTENSIONS = {
