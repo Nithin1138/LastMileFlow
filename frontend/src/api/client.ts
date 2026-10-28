@@ -27,10 +27,44 @@ const API_BASE = rawBase
 
 export const apiClient = axios.create({
   baseURL: API_BASE,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// Lightweight in-memory cache for metadata queries (zones, areas, rate cards)
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+const memoryCache = new Map<string, CacheEntry<any>>();
+
+export function getCached<T>(key: string, ttlMs: number = 60000): T | null {
+  const entry = memoryCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > ttlMs) {
+    memoryCache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+export function setCached<T>(key: string, data: T): void {
+  memoryCache.set(key, { data, timestamp: Date.now() });
+}
+
+export function invalidateCache(prefix?: string): void {
+  if (!prefix) {
+    memoryCache.clear();
+    return;
+  }
+  for (const k of memoryCache.keys()) {
+    if (k.startsWith(prefix)) {
+      memoryCache.delete(k);
+    }
+  }
+}
 
 // Attach JWT token if stored
 apiClient.interceptors.request.use((config) => {
@@ -184,47 +218,66 @@ export const adminApi = {
   },
 
   listZones: async (): Promise<Zone[]> => {
+    const cached = getCached<Zone[]>('admin_zones', 60000);
+    if (cached) return cached;
     const res = await apiClient.get<Zone[]>('/admin/zones');
+    setCached('admin_zones', res.data);
     return res.data;
   },
 
   createZone: async (name: string): Promise<Zone> => {
     const res = await apiClient.post<Zone>('/admin/zones', { name });
+    invalidateCache('admin_zones');
+    invalidateCache('agent_zones');
     return res.data;
   },
 
   listAreas: async (zone_id?: string): Promise<Area[]> => {
+    const cacheKey = `admin_areas_${zone_id || 'all'}`;
+    const cached = getCached<Area[]>(cacheKey, 60000);
+    if (cached) return cached;
     const res = await apiClient.get<Area[]>('/admin/areas', { params: { zone_id } });
+    setCached(cacheKey, res.data);
     return res.data;
   },
 
   createArea: async (payload: { pincode: string; name?: string; zone_id: string }): Promise<Area> => {
     const res = await apiClient.post<Area>('/admin/areas', payload);
+    invalidateCache('admin_areas');
     return res.data;
   },
 
   listRateCards: async (): Promise<RateCard[]> => {
+    const cached = getCached<RateCard[]>('admin_rate_cards', 60000);
+    if (cached) return cached;
     const res = await apiClient.get<RateCard[]>('/admin/rate-cards');
+    setCached('admin_rate_cards', res.data);
     return res.data;
   },
 
   createRateCard: async (payload: { order_type: string; zone_type: string; base_fee: number; rate_per_kg: number }): Promise<RateCard> => {
     const res = await apiClient.post<RateCard>('/admin/rate-cards', payload);
+    invalidateCache('admin_rate_cards');
     return res.data;
   },
 
   updateRateCard: async (id: string, payload: { base_fee?: number; rate_per_kg?: number }): Promise<RateCard> => {
     const res = await apiClient.put<RateCard>(`/admin/rate-cards/${id}`, payload);
+    invalidateCache('admin_rate_cards');
     return res.data;
   },
 
   listCODSurcharges: async (): Promise<CODSurcharge[]> => {
+    const cached = getCached<CODSurcharge[]>('admin_cod_surcharges', 60000);
+    if (cached) return cached;
     const res = await apiClient.get<CODSurcharge[]>('/admin/cod-surcharges');
+    setCached('admin_cod_surcharges', res.data);
     return res.data;
   },
 
   createCODSurcharge: async (payload: { order_type: string; flat_amount: number; percent_of_base: number }): Promise<CODSurcharge> => {
     const res = await apiClient.post<CODSurcharge>('/admin/cod-surcharges', payload);
+    invalidateCache('admin_cod_surcharges');
     return res.data;
   },
 
@@ -266,7 +319,10 @@ export const agentSelfApi = {
     return res.data;
   },
   listZones: async (): Promise<Zone[]> => {
+    const cached = getCached<Zone[]>('agent_zones', 60000);
+    if (cached) return cached;
     const res = await apiClient.get<Zone[]>('/agents/zones');
+    setCached('agent_zones', res.data);
     return res.data;
   },
   updateSelf: async (payload: { availability_status?: string; latitude?: number; longitude?: number; zone_id?: string }) => {

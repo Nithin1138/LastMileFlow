@@ -68,15 +68,18 @@ export const Navbar: React.FC<Props> = ({ currentTab, onSelectTab }) => {
   });
 
   React.useEffect(() => {
-    if (!navContainerRef.current) return;
-    const activeBtn = navContainerRef.current.querySelector<HTMLButtonElement>(`[data-tab="${currentTab}"]`);
-    if (activeBtn) {
-      setIndicator({
-        left: activeBtn.offsetLeft,
-        width: activeBtn.offsetWidth,
-        ready: true,
-      });
-    }
+    const handle = requestAnimationFrame(() => {
+      if (!navContainerRef.current) return;
+      const activeBtn = navContainerRef.current.querySelector<HTMLButtonElement>(`[data-tab="${currentTab}"]`);
+      if (activeBtn) {
+        setIndicator({
+          left: activeBtn.offsetLeft,
+          width: activeBtn.offsetWidth,
+          ready: true,
+        });
+      }
+    });
+    return () => cancelAnimationFrame(handle);
   }, [currentTab, user.role]);
 
   const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';

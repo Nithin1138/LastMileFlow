@@ -160,6 +160,7 @@ class DeliveryAgent(Base):
         CheckConstraint("max_capacity > 0", name="ck_agent_capacity_positive"),
         Index("ix_agents_availability", "availability_status"),
         Index("ix_agents_zone", "current_zone_id"),
+        Index("ix_agents_active_status", "is_active", "availability_status"),
     )
 
     # Relationships
@@ -336,6 +337,10 @@ class Order(Base):
         Index("ix_orders_pickup_zone", "pickup_zone_id"),
         Index("ix_orders_drop_zone", "drop_zone_id"),
         Index("ix_orders_created", "created_at"),
+        Index("ix_orders_customer_created", "customer_id", "created_at"),
+        Index("ix_orders_agent_created", "agent_id", "created_at"),
+        Index("ix_orders_status_created", "status", "created_at"),
+        Index("ix_orders_pickup_drop_pincode", "pickup_pincode", "drop_pincode"),
     )
 
     # Relationships
@@ -380,6 +385,8 @@ class OrderStatusHistory(Base):
     __table_args__ = (
         Index("ix_status_history_order", "order_id"),
         Index("ix_status_history_created", "created_at"),
+        Index("ix_status_history_new_status_created", "new_status", "created_at"),
+        Index("ix_status_history_order_status", "order_id", "new_status"),
     )
 
     # Relationships
@@ -433,6 +440,8 @@ class DeliveryAttempt(Base):
         UniqueConstraint("order_id", "attempt_number", name="uq_attempt_per_order"),
         Index("ix_attempts_order", "order_id"),
         Index("ix_attempts_agent", "agent_id"),
+        Index("ix_attempts_status_completed", "status", "completed_at"),
+        Index("ix_attempts_order_status", "order_id", "status"),
     )
 
     # Relationships

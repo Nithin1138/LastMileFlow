@@ -49,9 +49,21 @@ export const AdminDashboard: React.FC<Props> = ({ onNavigateToOrders }) => {
   useEffect(() => {
     fetchMetrics();
     const interval = setInterval(() => {
+      if (document.hidden) return;
       fetchMetrics(false);
-    }, 15000);
-    return () => clearInterval(interval);
+    }, 30000);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchMetrics(false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   if (loading) {

@@ -6,12 +6,22 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    pool_pre_ping=True,
-    echo=False,
-    future=True,
-)
+engine_kwargs = {
+    "pool_pre_ping": True,
+    "echo": False,
+    "future": True,
+}
+if not settings.DATABASE_URL.startswith("sqlite"):
+    engine_kwargs.update({
+        "pool_size": 15,
+        "max_overflow": 25,
+        "pool_recycle": 1800,
+        "pool_timeout": 30,
+    })
+else:
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+
+engine = create_engine(settings.DATABASE_URL, **engine_kwargs)
 
 SessionLocal = sessionmaker(
     autocommit=False,
@@ -112,7 +122,26 @@ def install_immutability_triggers(bind=None):
 
 
 def create_tables():
-    """Create all tables from model metadata and install immutability triggers."""
+    """Create all tables from model metadata, create composite indexes, and install immutability triggers."""
     from app.models import models  # noqa: F401 — import to register models
     Base.metadata.create_all(bind=engine)
     install_immutability_triggers(engine)
+
+    # Ensure composite performance indexes exist on existing production tables
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS ix_orders_customer_created ON orders (customer_id, created_at DESC);
+                    CREATE INDEX IF NOT EXISTS ix_orders_agent_created ON orders (agent_id, created_at DESC);
+                    CREATE INDEX IF NOT EXISTS ix_orders_status_created ON orders (status, created_at DESC);
+                    CREATE INDEX IF NOT EXISTS ix_orders_pickup_drop_pincode ON orders (pickup_pincode, drop_pincode);
+                    CREATE INDEX IF NOT EXISTS ix_status_history_new_status_created ON order_status_history (new_status, created_at);
+                    CREATE INDEX IF NOT EXISTS ix_status_history_order_status ON order_status_history (order_id, new_status);
+                    CREATE INDEX IF NOT EXISTS ix_attempts_status_completed ON delivery_attempts (status, completed_at);
+                    CREATE INDEX IF NOT EXISTS ix_attempts_order_status ON delivery_attempts (order_id, status);
+                    CREATE INDEX IF NOT EXISTS ix_agents_active_status ON delivery_agents (is_active, availability_status);
+                """))
+        except Exception as e:
+            logger.debug(f"Index creation notice: {e}")
+

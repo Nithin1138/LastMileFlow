@@ -35,4 +35,5 @@ pyrightconfig.json
 *.pdf
 *.zip
 MASTER_DOCUMENT.md
+RESUME.md
 last-mile-delivery-tracker_*.pdf

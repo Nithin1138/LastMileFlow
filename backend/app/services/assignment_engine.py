@@ -12,7 +12,7 @@ from dataclasses import dataclass, asdict
 from typing import List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.models import (
     DeliveryAgent,
@@ -49,6 +49,7 @@ def find_eligible_agents(db: Session) -> List[DeliveryAgent]:
     """
     return (
         db.query(DeliveryAgent)
+        .options(joinedload(DeliveryAgent.user))
         .filter(
             DeliveryAgent.is_active == True,
             DeliveryAgent.availability_status == AgentStatusEnum.AVAILABLE,

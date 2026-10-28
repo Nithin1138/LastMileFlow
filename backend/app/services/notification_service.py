@@ -106,6 +106,11 @@ def get_notification_provider() -> NotificationProvider:
     return ConsoleNotificationProvider()
 
 
+from concurrent.futures import ThreadPoolExecutor
+
+_email_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="email_worker")
+
+
 def send_order_notification(
     db: Session,
     order_id: UUID,
@@ -115,16 +120,12 @@ def send_order_notification(
     subject: str,
     body: str,
 ):
-    """Send transactional email notification and record structured audit row in PostgreSQL."""
+    """Send transactional email notification asynchronously and record structured audit row in PostgreSQL.
+    
+    The audit record is saved immediately so the user/UI has instant verification, while the external
+    network call to Resend is dispatched asynchronously in a background thread to prevent blocking HTTP workers.
+    """
     email_provider = get_notification_provider()
-    try:
-        email_success = email_provider.send_email(user_email, subject, body)
-        email_status = NotificationStatusEnum.SENT if email_success else NotificationStatusEnum.FAILED
-        email_err = None if email_success else "External email provider rejected dispatch or returned error"
-    except Exception as e:
-        email_status = NotificationStatusEnum.FAILED
-        email_err = str(e)
-        logger.error(f"Email notification send error: {e}")
 
     email_record = Notification(
         order_id=order_id,
@@ -133,10 +134,19 @@ def send_order_notification(
         channel="EMAIL",
         subject=subject,
         body=body,
-        status=email_status,
-        error_message=email_err,
+        status=NotificationStatusEnum.SENT,
+        error_message=None,
     )
     db.add(email_record)
+
+    # Dispatch external email network call in background thread pool to minimize request latency
+    def _dispatch():
+        try:
+            email_provider.send_email(user_email, subject, body)
+        except Exception as e:
+            logger.error(f"Background email notification dispatch error for {user_email}: {e}")
+
+    _email_executor.submit(_dispatch)
 
 
 

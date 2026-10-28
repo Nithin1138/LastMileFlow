@@ -4,15 +4,24 @@ import { ThemeProvider } from './context/ThemeContext';
 
 import { Navbar } from './components/Navbar';
 import { Login } from './pages/Login';
-import { CustomerDashboard } from './pages/CustomerDashboard';
-import { AgentDashboard } from './pages/AgentDashboard';
-import { AdminDashboard } from './pages/AdminDashboard';
-import { AdminOrdersPage } from './pages/AdminOrdersPage';
-import { AdminAgentsPage } from './pages/AdminAgentsPage';
-import { AdminZonesPage } from './pages/AdminZonesPage';
-import { AdminRateCardsPage } from './pages/AdminRateCardsPage';
-import { OrderCreatePage } from './pages/OrderCreatePage';
-import { OrderDetailModal } from './pages/OrderDetailModal';
+
+// Dynamic code splitting via React.lazy for instant initial bundle delivery
+const CustomerDashboard = React.lazy(() => import('./pages/CustomerDashboard').then((m) => ({ default: m.CustomerDashboard })));
+const AgentDashboard = React.lazy(() => import('./pages/AgentDashboard').then((m) => ({ default: m.AgentDashboard })));
+const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
+const AdminOrdersPage = React.lazy(() => import('./pages/AdminOrdersPage').then((m) => ({ default: m.AdminOrdersPage })));
+const AdminAgentsPage = React.lazy(() => import('./pages/AdminAgentsPage').then((m) => ({ default: m.AdminAgentsPage })));
+const AdminZonesPage = React.lazy(() => import('./pages/AdminZonesPage').then((m) => ({ default: m.AdminZonesPage })));
+const AdminRateCardsPage = React.lazy(() => import('./pages/AdminRateCardsPage').then((m) => ({ default: m.AdminRateCardsPage })));
+const OrderCreatePage = React.lazy(() => import('./pages/OrderCreatePage').then((m) => ({ default: m.OrderCreatePage })));
+const OrderDetailModal = React.lazy(() => import('./pages/OrderDetailModal').then((m) => ({ default: m.OrderDetailModal })));
+
+const PageFallback: React.FC = () => (
+  <div className="flex items-center justify-center min-h-[360px] text-xs text-[#8A919C] dark:text-[#737A84] gap-2">
+    <div className="w-4 h-4 border-2 border-[#3157A6] dark:border-[#6D8ED4] border-t-transparent rounded-full animate-spin" />
+    <span className="font-mono text-[11px]">Loading view...</span>
+  </div>
+);
 
 const MainApp: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -49,50 +58,52 @@ const MainApp: React.FC = () => {
       <Navbar currentTab={currentTab} onSelectTab={setCurrentTab} />
 
       <main className="flex-1 pb-16">
-        {/* CUSTOMER PORTAL */}
-        {user.role === 'CUSTOMER' && (
-          <div key={currentTab} className="page-enter">
-            {currentTab === 'create-order' ? (
-              <OrderCreatePage onOrderCreated={handleOrderCreated} />
-            ) : (
-              <CustomerDashboard onCreateOrderClick={() => setCurrentTab('create-order')} />
-            )}
-          </div>
-        )}
+        <React.Suspense fallback={<PageFallback />}>
+          {/* CUSTOMER PORTAL */}
+          {user.role === 'CUSTOMER' && (
+            <div key={currentTab} className="page-enter">
+              {currentTab === 'create-order' ? (
+                <OrderCreatePage onOrderCreated={handleOrderCreated} />
+              ) : (
+                <CustomerDashboard onCreateOrderClick={() => setCurrentTab('create-order')} />
+              )}
+            </div>
+          )}
 
-        {/* AGENT PORTAL */}
-        {user.role === 'AGENT' && (
-          <div key={currentTab} className="page-enter">
-            <AgentDashboard />
-          </div>
-        )}
+          {/* AGENT PORTAL */}
+          {user.role === 'AGENT' && (
+            <div key={currentTab} className="page-enter">
+              <AgentDashboard />
+            </div>
+          )}
 
-        {/* ADMIN PORTAL */}
-        {user.role === 'ADMIN' && (
-          <div key={currentTab} className="page-enter">
-            {currentTab === 'dashboard' && (
-              <AdminDashboard onNavigateToOrders={() => setCurrentTab('orders')} />
-            )}
-            {currentTab === 'orders' && (
-              <AdminOrdersPage />
-            )}
-            {currentTab === 'create-order' && (
-              <OrderCreatePage onOrderCreated={handleOrderCreated} />
-            )}
-            {currentTab === 'agents' && <AdminAgentsPage />}
-            {currentTab === 'zones' && <AdminZonesPage />}
-            {currentTab === 'rate-cards' && <AdminRateCardsPage />}
-          </div>
-        )}
+          {/* ADMIN PORTAL */}
+          {user.role === 'ADMIN' && (
+            <div key={currentTab} className="page-enter">
+              {currentTab === 'dashboard' && (
+                <AdminDashboard onNavigateToOrders={() => setCurrentTab('orders')} />
+              )}
+              {currentTab === 'orders' && (
+                <AdminOrdersPage />
+              )}
+              {currentTab === 'create-order' && (
+                <OrderCreatePage onOrderCreated={handleOrderCreated} />
+              )}
+              {currentTab === 'agents' && <AdminAgentsPage />}
+              {currentTab === 'zones' && <AdminZonesPage />}
+              {currentTab === 'rate-cards' && <AdminRateCardsPage />}
+            </div>
+          )}
+
+          {/* Global Order Detail Modal when triggered */}
+          {selectedOrderId && (
+            <OrderDetailModal
+              orderId={selectedOrderId}
+              onClose={() => setSelectedOrderId(null)}
+            />
+          )}
+        </React.Suspense>
       </main>
-
-      {/* Global Order Detail Modal when triggered */}
-      {selectedOrderId && (
-        <OrderDetailModal
-          orderId={selectedOrderId}
-          onClose={() => setSelectedOrderId(null)}
-        />
-      )}
 
       {/* Footer */}
       <footer className="border-t border-[#E2E5E9] dark:border-[#2B3138] py-4 px-6 text-center text-xs text-[#8A919C] dark:text-[#737A84] bg-white/70 dark:bg-[#181C20]/70 transition-colors">

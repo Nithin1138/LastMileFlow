@@ -372,54 +372,62 @@ def list_orders(
     current_user: User = Depends(get_current_user),
 ):
     """List orders with filtering, role-scoped."""
-    query = db.query(Order).options(
-        joinedload(Order.customer),
-        joinedload(Order.agent).joinedload(DeliveryAgent.user),
-        joinedload(Order.pickup_zone),
-        joinedload(Order.drop_zone),
-    )
+    base_query = db.query(Order)
 
     # Strict role scoping
     if current_user.role == RoleEnum.CUSTOMER:
-        query = query.filter(Order.customer_id == current_user.id)
+        base_query = base_query.filter(Order.customer_id == current_user.id)
     elif current_user.role == RoleEnum.AGENT:
         agent = db.query(DeliveryAgent).filter(DeliveryAgent.user_id == current_user.id).first()
         if agent:
-            query = query.filter(Order.agent_id == agent.id)
+            base_query = base_query.filter(Order.agent_id == agent.id)
         else:
-            query = query.filter(Order.id == None)  # No agent profile = no orders
+            base_query = base_query.filter(Order.id == None)  # No agent profile = no orders
 
     # Filters
     if status:
-        query = query.filter(Order.status == status)
+        base_query = base_query.filter(Order.status == status)
     if zone_id:
         parsed_zone = _parse_uuid(zone_id, "zone ID")
-        query = query.filter(
+        base_query = base_query.filter(
             (Order.pickup_zone_id == parsed_zone) | (Order.drop_zone_id == parsed_zone)
         )
     if agent_id and current_user.role == RoleEnum.ADMIN:
         parsed_agent_id = _parse_uuid(agent_id, "agent ID")
-        # Support filtering by either DeliveryAgent.id or DeliveryAgent.user_id
         agent_record = db.query(DeliveryAgent).filter(
             (DeliveryAgent.id == parsed_agent_id) | (DeliveryAgent.user_id == parsed_agent_id)
         ).first()
         if agent_record:
-            query = query.filter(Order.agent_id == agent_record.id)
+            base_query = base_query.filter(Order.agent_id == agent_record.id)
         else:
-            query = query.filter(Order.agent_id == parsed_agent_id)
+            base_query = base_query.filter(Order.agent_id == parsed_agent_id)
     if customer_id and current_user.role == RoleEnum.ADMIN:
-        query = query.filter(Order.customer_id == _parse_uuid(customer_id, "customer ID"))
+        base_query = base_query.filter(Order.customer_id == _parse_uuid(customer_id, "customer ID"))
     if search:
-        query = query.filter(
-            Order.pickup_address.ilike(f"%{search}%")
-            | Order.drop_address.ilike(f"%{search}%")
-            | Order.pickup_pincode.ilike(f"%{search}%")
-            | Order.drop_pincode.ilike(f"%{search}%")
+        search_term = search.strip()
+        search_filter = (
+            Order.pickup_address.ilike(f"%{search_term}%")
+            | Order.drop_address.ilike(f"%{search_term}%")
+            | Order.pickup_pincode.ilike(f"%{search_term}%")
+            | Order.drop_pincode.ilike(f"%{search_term}%")
         )
+        try:
+            parsed_search_uuid = UUID(search_term)
+            search_filter = search_filter | (Order.id == parsed_search_uuid)
+        except (ValueError, AttributeError):
+            pass
+        base_query = base_query.filter(search_filter)
 
-    total = query.count()
+    # High-performance scalar count without expensive multi-table joins
+    total = base_query.with_entities(func.count(Order.id)).order_by(None).scalar() or 0
     orders = (
-        query.order_by(desc(Order.created_at))
+        base_query.options(
+            joinedload(Order.customer),
+            joinedload(Order.agent).joinedload(DeliveryAgent.user),
+            joinedload(Order.pickup_zone),
+            joinedload(Order.drop_zone),
+        )
+        .order_by(desc(Order.created_at))
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()

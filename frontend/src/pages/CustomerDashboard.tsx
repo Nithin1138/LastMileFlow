@@ -144,15 +144,18 @@ export const CustomerDashboard: React.FC<Props> = ({ onCreateOrderClick }) => {
   });
 
   React.useEffect(() => {
-    if (!filterContainerRef.current) return;
-    const activeBtn = filterContainerRef.current.querySelector<HTMLButtonElement>(`[data-filter="${activeTabFilter}"]`);
-    if (activeBtn) {
-      setFilterIndicator({
-        left: activeBtn.offsetLeft,
-        width: activeBtn.offsetWidth,
-        ready: true,
-      });
-    }
+    const handle = requestAnimationFrame(() => {
+      if (!filterContainerRef.current) return;
+      const activeBtn = filterContainerRef.current.querySelector<HTMLButtonElement>(`[data-filter="${activeTabFilter}"]`);
+      if (activeBtn) {
+        setFilterIndicator({
+          left: activeBtn.offsetLeft,
+          width: activeBtn.offsetWidth,
+          ready: true,
+        });
+      }
+    });
+    return () => cancelAnimationFrame(handle);
   }, [activeTabFilter, orders.length, activeCount, deliveredCount, issueCount]);
 
   return (

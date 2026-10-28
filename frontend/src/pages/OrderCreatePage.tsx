@@ -158,15 +158,24 @@ export const OrderCreatePage: React.FC<Props> = ({ onOrderCreated }) => {
     }
 
     const fetchQuote = async () => {
-      if (!pickupPincode || !dropPincode || lengthCm <= 0 || breadthCm <= 0 || heightCm <= 0 || actualWeightKg <= 0) {
+      const cleanPickup = pickupPincode.trim();
+      const cleanDrop = dropPincode.trim();
+      if (
+        cleanPickup.length !== 6 ||
+        cleanDrop.length !== 6 ||
+        lengthCm <= 0 ||
+        breadthCm <= 0 ||
+        heightCm <= 0 ||
+        actualWeightKg <= 0
+      ) {
         return;
       }
       setQuoteLoading(true);
       setQuoteError(null);
       try {
         const res = await ordersApi.getQuote({
-          pickup_pincode: pickupPincode,
-          drop_pincode: dropPincode,
+          pickup_pincode: cleanPickup,
+          drop_pincode: cleanDrop,
           length_cm: Number(lengthCm),
           breadth_cm: Number(breadthCm),
           height_cm: Number(heightCm),
@@ -182,7 +191,7 @@ export const OrderCreatePage: React.FC<Props> = ({ onOrderCreated }) => {
       }
     };
 
-    const timer = setTimeout(fetchQuote, 120);
+    const timer = setTimeout(fetchQuote, 300);
     return () => clearTimeout(timer);
   }, [pickupPincode, dropPincode, lengthCm, breadthCm, heightCm, actualWeightKg, orderType, paymentType]);
 

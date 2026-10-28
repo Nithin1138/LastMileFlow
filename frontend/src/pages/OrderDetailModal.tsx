@@ -42,9 +42,15 @@ interface Props {
   onRefreshNeeded?: () => void;
 }
 
+// Memoized cache to prevent heavy DOMParser instantiation on every render cycle
+const emailParseCache = new Map<string, { title: string; body: string; snippet: string; details: Array<{ label: string; value: string }> }>();
+
 // Clean helper to extract legible email info for Inbox view
 const parseEmailContent = (htmlOrText: string): { title: string; body: string; snippet: string; details: Array<{ label: string; value: string }> } => {
   if (!htmlOrText) return { title: '', body: '', snippet: '', details: [] };
+  const cached = emailParseCache.get(htmlOrText);
+  if (cached) return cached;
+
   try {
     const doc = new DOMParser().parseFromString(htmlOrText, 'text/html');
     const title = doc.querySelector('h1')?.textContent?.trim() || '';
@@ -64,10 +70,14 @@ const parseEmailContent = (htmlOrText: string): { title: string; body: string; s
       }
     });
     const snippet = paragraphs.slice(0, 100) + (paragraphs.length > 100 ? '...' : '');
-    return { title, body: paragraphs, snippet, details };
+    const result = { title, body: paragraphs, snippet, details };
+    emailParseCache.set(htmlOrText, result);
+    return result;
   } catch {
     const clean = htmlOrText.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
-    return { title: '', body: clean, snippet: clean.slice(0, 100), details: [] };
+    const result = { title: '', body: clean, snippet: clean.slice(0, 100), details: [] };
+    emailParseCache.set(htmlOrText, result);
+    return result;
   }
 };
 

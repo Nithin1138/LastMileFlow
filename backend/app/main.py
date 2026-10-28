@@ -42,6 +42,10 @@ app = FastAPI(
 
 import time
 import uuid
+from fastapi.middleware.gzip import GZipMiddleware
+
+# GZip Compression Middleware (Compresses all JSON/text responses > 500 bytes by up to 80%)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # CORS Middleware
 app.add_middleware(
@@ -52,9 +56,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Request Tracing & Latency Middleware
+# Consolidated Observability & Security Headers Middleware (Single pass to eliminate duplicate dispatch overhead)
 @app.middleware("http")
-async def add_observability_headers(request: Request, call_next):
+async def add_performance_and_security_headers(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
     start_time = time.perf_counter()
     
@@ -63,12 +67,6 @@ async def add_observability_headers(request: Request, call_next):
     process_time = time.perf_counter() - start_time
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Process-Time"] = f"{process_time:.4f}s"
-    return response
-
-# Security Headers Middleware
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
